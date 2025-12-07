@@ -64,13 +64,15 @@ function updateLocationCards(locations) {
     locations.forEach(location => {
         const locationKey = getLocationKey(location.location);
 
-        // Update metrics
         document.getElementById(`ice-${locationKey}`).textContent =
-            location.avgIceThickness.toFixed(1);
+            location.avgIceThickness !== null ? location.avgIceThickness.toFixed(1) : "--";
+
         document.getElementById(`temp-${locationKey}`).textContent =
-            location.avgSurfaceTemperature.toFixed(1);
+            location.avgSurfaceTemp !== null ? location.avgSurfaceTemp.toFixed(1) : "--";
+
         document.getElementById(`snow-${locationKey}`).textContent =
-            location.maxSnowAccumulation.toFixed(1);
+            location.maxSnowAccumulation !== null ? location.maxSnowAccumulation.toFixed(1) : "--";
+
 
         // Update safety status
         const statusBadge = document.getElementById(`status-${locationKey}`);
@@ -78,6 +80,9 @@ function updateLocationCards(locations) {
         statusBadge.className = `safety-badge ${location.safetyStatus.toLowerCase()}`;
     });
 }
+
+
+
 
 /**
  * Update overall status badge
@@ -127,7 +132,7 @@ async function updateCharts() {
         // Prepare chart data
         const iceDatasets = historicalData.map(({ location, data }) => ({
             label: location,
-            data: data.map(d => d.avgIceThickness),
+            data: data.map(d => d.avgIceThickness !== null ? Number(d.avgIceThickness.toFixed(1)) : null),
             borderColor: colors[location],
             backgroundColor: colors[location] + '33',
             tension: 0.4,
@@ -136,7 +141,7 @@ async function updateCharts() {
 
         const tempDatasets = historicalData.map(({ location, data }) => ({
             label: location,
-            data: data.map(d => d.avgSurfaceTemperature),
+            data: data.map(d => d.avgSurfaceTemp !== null ? Number(d.avgSurfaceTemp.toFixed(1)) : null),
             borderColor: colors[location],
             backgroundColor: colors[location] + '33',
             tension: 0.4,
@@ -145,7 +150,7 @@ async function updateCharts() {
 
         // Get time labels from first location's data
         const labels = historicalData[0].data.map(d =>
-            new Date(d.windowEndTime).toLocaleTimeString('en-CA', {
+            new Date(d.windowEnd).toLocaleTimeString('en-CA', {
                 hour: '2-digit',
                 minute: '2-digit'
             })
@@ -234,8 +239,8 @@ async function updateCharts() {
  */
 function getLocationKey(location) {
     const keyMap = {
-        "Dow's Lake": "dows",
-        "Fifth Avenue": "fifth",
+        "Dows_Lake": "dows",
+        "Fifth_Avenue": "fifth",
         "NAC": "nac"
     };
     return keyMap[location] || location.toLowerCase().replace(/[^a-z]/g, '');

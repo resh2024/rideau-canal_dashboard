@@ -1,6 +1,5 @@
 /**
- * Rideau Canal Monitoring Dashboard - Backend Server (CORRECTED)
- * Serves the dashboard and provides API endpoints for real-time data
+ * Rideau Canal Monitoring Dashboard - Backend Server (FIXED FOR ASA SCHEMA)
  */
 
 const express = require('express');
@@ -17,7 +16,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Initialize Cosmos DB Client
+// Cosmos DB Client
 const cosmosClient = new CosmosClient({
     endpoint: process.env.COSMOS_ENDPOINT,
     key: process.env.COSMOS_KEY
@@ -26,157 +25,113 @@ const cosmosClient = new CosmosClient({
 const database = cosmosClient.database(process.env.COSMOS_DATABASE);
 const container = database.container(process.env.COSMOS_CONTAINER);
 
-/**
- * API Endpoint: Get latest readings for all locations
- */
+// ---------------------------------------------------------------------------
+// GET LATEST DATA
+// ---------------------------------------------------------------------------
 app.get('/api/latest', async (req, res) => {
     try {
-        const locations = ["Dow's Lake", "Fifth Avenue", "NAC"];
+        const locations = ["Dows_Lake", "Fifth_Avenue", "NAC"];
         const results = [];
 
         for (const location of locations) {
-            // Query without subquery - get all records for location, sort client-side
             const querySpec = {
                 query: "SELECT * FROM c WHERE c.location = @location",
-                parameters: [
-                    { name: "@location", value: location }
-                ]
+                parameters: [{ name: "@location", value: location }]
             };
 
-            const { resources } = await container.items
-                .query(querySpec)
-                .fetchAll();
+            const { resources } = await container.items.query(querySpec).fetchAll();
 
             if (resources.length > 0) {
-                // Sort by windowEndTime descending and get the first one
                 resources.sort((a, b) =>
-                    new Date(b.windowEndTime) - new Date(a.windowEndTime)
+                    new Date(b.windowEnd) - new Date(a.windowEnd)
                 );
                 results.push(resources[0]);
             }
         }
 
-        res.json({
-            success: true,
-            timestamp: new Date().toISOString(),
-            data: results
-        });
+        res.json({ success: true, data: results });
 
     } catch (error) {
-        console.error('Error fetching latest data:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch latest data'
-        });
+        console.error("Error fetching latest:", error);
+        res.status(500).json({ success: false, error: "Failed to fetch latest" });
     }
 });
 
-/**
- * API Endpoint: Get historical data for a specific location
- */
+// ---------------------------------------------------------------------------
+// GET HISTORICAL DATA
+// ---------------------------------------------------------------------------
 app.get('/api/history/:location', async (req, res) => {
     try {
         const { location } = req.params;
-        const limit = parseInt(req.query.limit) || 12; // Last hour (12 * 5 min)
 
         const querySpec = {
             query: "SELECT * FROM c WHERE c.location = @location",
-            parameters: [
-                { name: "@location", value: location }
-            ]
+            parameters: [{ name: "@location", value: location }]
         };
 
-        const { resources } = await container.items
-            .query(querySpec)
-            .fetchAll();
+        const { resources } = await container.items.query(querySpec).fetchAll();
 
-        // Sort by windowEndTime descending and limit
         resources.sort((a, b) =>
-            new Date(b.windowEndTime) - new Date(a.windowEndTime)
+            new Date(b.windowEnd) - new Date(a.windowEnd)
         );
-
-        const limitedResults = resources.slice(0, limit);
 
         res.json({
             success: true,
             location: location,
-            data: limitedResults.reverse() // Oldest to newest for charting
+            data: resources.reverse()
         });
 
     } catch (error) {
-        console.error('Error fetching history:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch historical data'
-        });
+        console.error("History error:", error);
+        res.status(500).json({ success: false, error: "Failed to fetch history" });
     }
 });
 
-/**
- * API Endpoint: Get overall system status
- */
+// ---------------------------------------------------------------------------
+// SYSTEM STATUS
+// ---------------------------------------------------------------------------
 app.get('/api/status', async (req, res) => {
     try {
-        const locations = ["Dow's Lake", "Fifth Avenue", "NAC"];
+        const locations = ["Dows_Lake", "Fifth_Avenue", "NAC"];
         const statuses = [];
 
         for (const location of locations) {
-            // Simple query without subquery
             const querySpec = {
-                query: "SELECT c.location, c.safetyStatus, c.windowEndTime FROM c WHERE c.location = @location",
-                parameters: [
-                    { name: "@location", value: location }
-                ]
+                query: "SELECT c.location, c.safetyStatus, c.windowEnd FROM c WHERE c.location = @location",
+                parameters: [{ name: "@location", value: location }]
             };
 
-            const { resources } = await container.items
-                .query(querySpec)
-                .fetchAll();
+            const { resources } = await container.items.query(querySpec).fetchAll();
 
             if (resources.length > 0) {
-                // Sort by windowEndTime descending and get the latest
                 resources.sort((a, b) =>
-                    new Date(b.windowEndTime) - new Date(a.windowEndTime)
+                    new Date(b.windowEnd) - new Date(a.windowEnd)
                 );
                 statuses.push(resources[0]);
             }
         }
 
-        // Determine overall status
-        const overallStatus = statuses.every(s => s.safetyStatus === 'Safe') ? 'Safe' :
-            statuses.some(s => s.safetyStatus === 'Unsafe') ? 'Unsafe' : 'Caution';
+        const overallStatus = statuses.every(s => s.safetyStatus === "Safe")
+            ? "Safe"
+            : statuses.some(s => s.safetyStatus === "Unsafe")
+                ? "Unsafe"
+                : "Caution";
 
-        res.json({
-            success: true,
-            overallStatus: overallStatus,
-            locations: statuses
-        });
+        res.json({ success: true, overallStatus, locations: statuses });
 
     } catch (error) {
-        console.error('Error fetching status:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch system status'
-        });
+        console.error("Status error:", error);
+        res.status(500).json({ success: false, error: "Failed to fetch status" });
     }
 });
 
-/**
- * API Endpoint: Get all data (for debugging)
- */
+// Debug endpoint
 app.get('/api/all', async (req, res) => {
     try {
-        const querySpec = {
-            query: "SELECT * FROM c"
-        };
+        const { resources } = await container.items.query("SELECT * FROM c").fetchAll();
 
-        const { resources } = await container.items
-            .query(querySpec)
-            .fetchAll();
-
-        // Sort by windowEndTime descending
         resources.sort((a, b) =>
-            new Date(b.windowEndTime) - new Date(a.windowEndTime)
+            new Date(b.windowEnd) - new Date(a.windowEnd)
         );
 
         res.json({
@@ -186,30 +141,23 @@ app.get('/api/all', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching all data:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch all data'
-        });
+        console.error("All error:", error);
+        res.status(500).json({ success: false, error: "Failed to fetch all data" });
     }
 });
 
-/**
- * Serve the dashboard
- */
+// Serve dashboard
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-/**
- * Health check endpoint
- */
+// Health endpoint
 app.get('/health', (req, res) => {
     res.json({
-        status: 'healthy',
+        status: "healthy",
         timestamp: new Date().toISOString(),
         cosmosdb: {
-            endpoint: process.env.COSMOS_ENDPOINT ? 'configured' : 'missing',
+            endpoint: process.env.COSMOS_ENDPOINT ? "configured" : "missing",
             database: process.env.COSMOS_DATABASE,
             container: process.env.COSMOS_CONTAINER
         }
@@ -218,13 +166,5 @@ app.get('/health', (req, res) => {
 
 // Start server
 app.listen(port, () => {
-    console.log(`🚀 Rideau Canal Dashboard server running on http://localhost:${port}`);
-    console.log(`📊 API endpoints available at http://localhost:${port}/api`);
-    console.log(`🏥 Health check: http://localhost:${port}/health`);
-});
-
-// Graceful shutdown
-process.on('SIGINT', () => {
-    console.log('\n👋 Shutting down server...');
-    process.exit(0);
+    console.log(`🚀 Dashboard backend running at http://localhost:${port}`);
 });
