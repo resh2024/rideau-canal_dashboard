@@ -4,7 +4,7 @@
  */
 
 // Configuration
-const API_BASE_URL = window.location.origin;
+const API_BASE_URL = "https://thankful-wave-037ed240f.3.azurestaticapps.net";
 const REFRESH_INTERVAL = 30000; // 30 seconds
 
 // Global state
